@@ -8,7 +8,10 @@ import argparse
 # nnPathDefault = str((Path(__file__).parent / Path('models/mobilenet-ssd_openvino_2021.4_6shave.blob')).resolve().absolute())
 
 # make sure that blob file name is correct version 2021.2_6
-nnPathDefault = './models/mobilenet-ssd_openvino_2021.2_6shave.blob'
+# nnPathDefault = './models/mobilenet-ssd_openvino_2021.2_6shave.blob'
+# nnPathDefault = './models/4_class_model_mobilenet_v3_large_data4_combined_class_weights_512x512_without_softmax.blob'
+nnPathDefault = './models/4_class_model_mobilenet_v3_small_data4_combined_class_weights_120k_512x512_without_softmax.blob'
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('nnPath', nargs='?', help="Path to mobilenet detection network blob", default=nnPathDefault)
@@ -28,7 +31,8 @@ pipeline = dai.Pipeline()
 
 # Define sources and outputs
 camRgb = pipeline.createColorCamera()
-nn = pipeline.createMobileNetDetectionNetwork()
+# nn = pipeline.createMobileNetDetectionNetwork() <-- old
+nn = pipeline.createNeuralNetwork()
 xoutRgb = pipeline.createXLinkOut()
 nnOut = pipeline.createXLinkOut()
 
@@ -36,11 +40,11 @@ xoutRgb.setStreamName("rgb")
 nnOut.setStreamName("nn")
 
 # Properties
-camRgb.setPreviewSize(300, 300)
+camRgb.setPreviewSize(512, 512)
 camRgb.setInterleaved(False)
 camRgb.setFps(40)
 # Define a neural network that will make predictions based on the source frames
-nn.setConfidenceThreshold(0.5)
+# nn.setConfidenceThreshold(0.5)
 nn.setBlobPath(args.nnPath)
 nn.setNumInferenceThreads(2)
 nn.input.setBlocking(False)
@@ -92,19 +96,32 @@ with dai.Device(pipeline) as device:
             # Instead of get (blocking), we use tryGet (nonblocking) which will return the available data or None otherwise
             inRgb = qRgb.tryGet()
             inDet = qDet.tryGet()
+        
 
         if inRgb is not None:
+            # show regualr rgb frame
             frame = inRgb.getCvFrame()
             cv2.putText(frame, "NN fps: {:.2f}".format(counter / (time.monotonic() - startTime)),
                         (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color2)
 
         if inDet is not None:
-            detections = inDet.detections
-            # print(detections)
+            # detection is found!
+            # detections = inDet.detections
+            layers = inDet.getAllLayers()
+            print(inDet.getAllLayers())
+            for layer_nr, layer in enumerate(layers):
+                print(f"Layer {layer_nr}")
+                print(f"Name: {layer.name}")
+                print(f"Order: {layer.order}")
+                print(f"dataType: {layer.dataType}")
+                dims = layer.dims[::-1] # reverse dimensions
+                print(f"dims: {dims}")
+            # layer_info_printed = True
             counter += 1
 
         # If the frame is available, draw bounding boxes on it and show the frame
         if frame is not None:
+            # print(frame)
             displayFrame("rgb", frame)
 
         if cv2.waitKey(1) == ord('q'):
